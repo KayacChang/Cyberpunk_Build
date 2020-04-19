@@ -5,6 +5,9 @@ services:
     build:
       context: "."
       dockerfile: "./dockerfiles/interface/Dockerfile"
+    ports:
+      - "80:80"
+      - "443:443"
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
