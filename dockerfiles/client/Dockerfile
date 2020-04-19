@@ -5,6 +5,8 @@ WORKDIR /app
 COPY ./client .
 COPY .env .
 
+RUN apk add --no-cache python make g++
+
 RUN npm ci && npm run build
 
 FROM nginx:alpine
