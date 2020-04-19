@@ -6,11 +6,7 @@ services:
       context: "."
       dockerfile: "./dockerfiles/interface/Dockerfile"
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
+      - "3000:80"
     depends_on:
       - backend
       - client
@@ -41,6 +37,3 @@ services:
     build:
       context: "."
       dockerfile: "./dockerfiles/client/Dockerfile"
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot

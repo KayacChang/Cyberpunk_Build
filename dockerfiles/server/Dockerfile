@@ -15,7 +15,4 @@ WORKDIR /root/
 
 COPY --from=builder /bin .
 
-COPY ./certbot/conf/live/sunnyland.fun/fullchain.pem .private/cert.pem
-COPY ./certbot/conf/live/sunnyland.fun/privkey.pem .private/key.pem
-
 ENTRYPOINT ["./run"]
