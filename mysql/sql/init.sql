@@ -6,18 +6,18 @@ GRANT ALL PRIVILEGES ON `logdb`.* TO 'serverConnect'@'%';
 USE `logdb`;
 
 CREATE TEMPORARY TABLE log (  
-  `index` bigint NOT NULL AUTO_INCREMENT,  
-  `Account` varchar(128) NOT NULL,  
-  `PlayerID` bigint NOT NULL,  
-  `Time` bigint NOT NULL,  
-  `ActivityEvent` int NOT NULL,  
-  `IValue1` bigint NOT NULL DEFAULT '0',  
-  `IValue2` bigint NOT NULL DEFAULT '0',  
-  `IValue3` bigint NOT NULL DEFAULT '0',  
-  `SValue1` varchar(128) NOT NULL DEFAULT '',  
-  `SValue2` varchar(128) NOT NULL DEFAULT '',  
-  `SValue3` varchar(128) NOT NULL DEFAULT '',  
-  `Msg` text NOT NULL,  
+  `index` bigint(20) NOT NULL AUTO_INCREMENT,
+  `Account` varchar(128) NOT NULL,
+  `PlayerID` bigint(20) NOT NULL,
+  `Time` bigint(20) NOT NULL,
+  `ActivityEvent` int(11) NOT NULL,
+  `IValue1` bigint(20) NOT NULL DEFAULT '0',
+  `IValue2` bigint(20) NOT NULL DEFAULT '0',
+  `IValue3` bigint(20) NOT NULL DEFAULT '0',
+  `SValue1` varchar(128) NOT NULL DEFAULT '',
+  `SValue2` varchar(128) NOT NULL DEFAULT '',
+  `SValue3` varchar(128) NOT NULL DEFAULT '',
+  `Msg` text NOT NULL,
   PRIMARY KEY (`index`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
