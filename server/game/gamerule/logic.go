@@ -1,278 +1,261 @@
 package gamerule
 
 import (
-	"fmt"
-
 	"github.com/YWJSonic/ServerUtility/foundation"
-	"github.com/YWJSonic/ServerUtility/gameplate"
+	"github.com/YWJSonic/ServerUtility/gamesystem"
 )
 
 type result struct {
-	Normalresult   map[string]interface{}
-	Otherdata      map[string]interface{}
-	Normaltotalwin int64
-	Freeresult     []map[string]interface{}
-	Freetotalwin   int64
+	NormalResult     map[string]interface{}
+	Otherdata        map[string]interface{}
+	NormalTotalwin   int64
+	RespinResult     map[string]interface{}
+	RespinTotalwin   int64
+	FreeGameResult   []interface{}
+	FreeGameTotalwin int64
 }
 
 // Result att 0: freecount
-func (r *Rule) newlogicResult(betMoney int64) result {
+func (r *Rule) newlogicResult(betMoney int64, att CatAttach) result {
+	var totalWin int64
+	var res result
 
-	option := gameplate.PlateOption{
-		Scotter: []int{r.Scotter1()},
-		Wild:    []int{r.Wild1()},
+	normalresult, otherdata, normaltotalwin := r.outputGame(betMoney, att.FreeCount)
+	// fmt.Println("----normalresult----", normalresult)
+	// fmt.Println("----otherdata----", otherdata)
+	// fmt.Println("----normaltotalwin----", normaltotalwin)
+
+	if otherdata["isrespin"].(int) == 1 {
+		respinresult, respintotalwin := r.outRespin(totalWin)
+		res.RespinResult = respinresult
+		res.RespinTotalwin = respintotalwin
+		// fmt.Println("----respinresult----", respinresult)
+		// fmt.Println("----respintotalwin----", respintotalwin)
 	}
 
-	normalresult, otherdata, normaltotalwin := r.outputGame(betMoney, option)
-	fmt.Println("----normalresult----", normalresult)
-	fmt.Println("----otherdata----", otherdata)
-	fmt.Println("----normaltotalwin----", normaltotalwin)
-	// result["normalresult"] = normalresult
-	// result["isfreegame"] = 0
-	// totalWin += normaltotalwin
-
-	if iscotter, ok := otherdata["isfreegame"]; ok && iscotter.(int) == 1 {
-		freeresult, freeotherdata, freetotalwin := r.outputFreeGame(betMoney, option)
-		fmt.Println("----freeresult----", freeresult)
-		fmt.Println("----freeotherdata----", freeotherdata)
-		fmt.Println("----freetotalwin----", freetotalwin)
-		// result["freeresult"] = freeresult
-		otherdata["freewildbonusrate"] = freeotherdata["freewildbonusrate"]
-		// result["isfreegame"] = 1
-		// totalWin += freetotalwin
-		return result{
-			Normalresult:   normalresult,
-			Otherdata:      otherdata,
-			Normaltotalwin: normaltotalwin,
-			Freeresult:     freeresult,
-			Freetotalwin:   freetotalwin,
-		}
+	if otherdata["isfreegame"].(int) == 1 {
+		freeresult, freetotalwin := r.outputFreeSpin(betMoney)
+		res.FreeGameResult = freeresult
+		res.FreeGameTotalwin = freetotalwin
+		// fmt.Println("----freeresult----", freeresult)
+		// fmt.Println("----freetotalwin----", freetotalwin)
 	}
 
 	// result["totalwinscore"] = totalWin
-	return result{
-		Normalresult:   normalresult,
-		Otherdata:      otherdata,
-		Normaltotalwin: normaltotalwin,
-	}
+	res.NormalResult = normalresult
+	res.Otherdata = otherdata
+	res.NormalTotalwin = normaltotalwin
+	return res
 }
 
-// outputGame out put normal game result, mini game status, totalwin
-func (r *Rule) outputGame(betMoney int64, option gameplate.PlateOption) (map[string]interface{}, map[string]interface{}, int64) {
+func (r *Rule) outputGame(betMoney int64, freecount int64) (map[string]interface{}, map[string]interface{}, int64) {
 	var totalScores int64
-	normalResult := make(map[string]interface{})
+	var result map[string]interface{}
 	otherdata := make(map[string]interface{})
+	islink := false
 
-	randWild := r.randWild()
-	normalResult, otherdata, totalScores = r.aRound(betMoney, r.normalReel(), randWild, option, 1)
-	normalResult["randwild"] = randWild
-	// normalResult["randwild"] = [][]int{}
+	ScrollIndex, plate := gamesystem.NewPlate(r.ScrollSize, r.normalReel())
 
-	return normalResult, otherdata, totalScores
-}
+	// count++
+	// plate = TestPlate(count % 4)
+	gameresult := r.winresultArray(plate)
 
-func (r *Rule) outputFreeGame(betMoney int64, option gameplate.PlateOption) ([]map[string]interface{}, map[string]interface{}, int64) {
-	var totalScores int64
-	var wildCount, bonusRate int
-	otherdata := make(map[string]interface{})
-	var freeResult []map[string]interface{}
-	var lockWildarray = make([][]int, len(r.NormalReelSize))
+	otherdata["isfreegame"] = 0
+	otherdata["freecount"] = freecount % r.FreeGameTrigger
+	otherdata["isrespin"] = 0
 
-	for i, imax := 0, r.FreeGameCount(); i < imax; i++ {
-		tmpResult, _, tmpTotalScores := r.aRound(betMoney, r.freeReel(), lockWildarray, option, 2)
-		totalScores += tmpTotalScores
-		freeResult = append(freeResult, tmpResult)
-
-		lockWildarray = r.lockWild(tmpResult["plate"].([][]int), lockWildarray, option)
-	}
-	for _, colArray := range lockWildarray {
-		wildCount += len(colArray)
-	}
-	// freeWildCount[fmt.Sprintf("%v", wildCount)]++
-
-	for limitIndex, limitCount := range r.WildBonusLimit {
-		if wildCount >= limitCount {
-			bonusRate = r.WildBonusRate[limitIndex]
-		}
-	}
-	if bonusRate > 0 {
-		totalScores *= int64(bonusRate)
-		otherdata["freewildbonusrate"] = bonusRate
-	} else {
-		otherdata["freewildbonusrate"] = 0
-	}
-	return freeResult, otherdata, totalScores
-}
-
-func (r *Rule) aRound(betMoney int64, scorll [][]int, randWild [][]int, option gameplate.PlateOption, gameType int) (map[string]interface{}, map[string]interface{}, int64) {
-
-	var totalScores int64
-	winLineInfo := []interface{}{}
-	otherdata := make(map[string]interface{})
-	result := make(map[string]interface{})
-
-	plateIndex, plateSymbol := gameplate.NewPlate2D(r.NormalReelSize, scorll)
-
-	// set random wild
-	plateSymbolInsertWild := r.setRandomWild(plateSymbol, randWild)
-	plateLineMap := gameplate.PlateToLinePlate(plateSymbolInsertWild, r.LineMap)
-
-	for lineIndex, plateLine := range plateLineMap {
-		newLine := gameplate.CutSymbolLink(plateLine, option) // cut line to win line point
-		for _, payLine := range r.ItemResults[len(newLine)] { // win line result group
-			if r.isWin(newLine, payLine, option) { // win result check
-				// if gameType == 1 {
-				// 	normalPayLineCount[fmt.Sprintf("%v", payLine)]++
-				// } else {
-				// 	freePayLineCount[fmt.Sprintf("%v", payLine)]++
-				// }
-
-				infoLine := gameplate.NewInfoLine()
-
-				for i, max := 0, len(payLine)-1; i < max; i++ {
-					infoLine.AddNewPoint(newLine[i], r.LineMap[lineIndex][i], option)
-				}
-				infoLine.LineWinIndex = lineIndex
-				infoLine.LineWinRate = payLine[len(payLine)-1]
-				infoLine.Score = int64(infoLine.LineWinRate) * (betMoney / int64(r.BetLine))
-				totalScores += infoLine.Score
-				winLineInfo = append(winLineInfo, infoLine)
-			}
+	if r.isFreeGameCount(plate) {
+		freecount++
+		if freecount >= r.FreeGameTrigger {
+			otherdata["isfreegame"] = 1
+			otherdata["freecount"] = freecount
+		} else {
+			otherdata["freecount"] = freecount
 		}
 	}
 
-	plateSymbolCollectResult := gameplate.PlateSymbolCollect(r.Scotter1(), plateSymbolInsertWild, option, map[string]interface{}{
-		"isincludewild":   false,
-		"isseachallplate": true,
-	})
-	scotterCount := foundation.InterfaceToInt(plateSymbolCollectResult["targetsymbolcount"])
-	scotterLineSymbol := plateSymbolCollectResult["symbolnumcollation"].([][]int)
-	scotterLinePoint := plateSymbolCollectResult["symbolpointcollation"].([][]int)
-
-	if scotterCount >= r.Scotter1GameLimit() {
-		infoLine := gameplate.NewInfoLine()
-
-		for i, max := 0, len(scotterLineSymbol); i < max; i++ {
-			if len(scotterLineSymbol[i]) > 0 {
-				infoLine.AddNewLine(scotterLineSymbol[i], scotterLinePoint[i], option)
-			} else {
-				infoLine.AddEmptyPoint()
-			}
-		}
-
-		winLineInfo = append(winLineInfo, infoLine)
-		otherdata["freegamecount"] = r.FreeGameCount
-		otherdata["isfreegame"] = 1
-
-	} else {
-		otherdata["isfreegame"] = 0
+	if r.isRespin(plate) {
+		otherdata["isrespin"] = 1
 	}
 
-	result["scores"] = totalScores
-	result["gameresult"] = winLineInfo
-	if gameType == 1 {
-		result = gameplate.ResultMapLine(plateIndex, plateSymbol, winLineInfo)
-	} else {
-		result = gameplate.ResultMapLine(plateIndex, plateSymbolInsertWild, winLineInfo)
+	if len(gameresult) > 0 {
+		islink = true
+		totalScores = betMoney * int64(gameresult[0][3])
 	}
+
+	result = gamesystem.ResultMap(ScrollIndex, plate, totalScores, islink)
 	return result, otherdata, totalScores
 }
 
-func (r *Rule) setRandomWild(plateSymbol [][]int, randomWildPoint [][]int) [][]int {
+func (r *Rule) outputFreeSpin(betMoney int64) ([]interface{}, int64) {
+	var result []interface{}
+	var totalScores int64
+	var freewinScore int64
+	var freeresult map[string]interface{}
+	islink := false
 
-	if len(randomWildPoint) <= 0 {
-		return plateSymbol
+	for i, max := 0, len(r.FreeGameWinRate); i < max; i++ {
+		ScrollIndex, plate := gamesystem.NewPlate(r.ScrollSize, r.FreeReel)
+		gameresult := r.winresultArray(plate)
+		freewinScore = 0
+		islink = false
+		if len(gameresult) > 0 {
+			islink = true
+			freewinScore = betMoney * int64(gameresult[0][3]) * int64(r.FreeGameWinRate[i])
+		}
+
+		totalScores += freewinScore
+		freeresult = gamesystem.ResultMap(ScrollIndex, plate, freewinScore, islink)
+		result = append(result, freeresult)
+	}
+	return result, totalScores
+}
+
+func (r *Rule) outRespin(normalScore int64) (map[string]interface{}, int64) {
+	var totalScores int64
+	islink := false
+
+	ScrollIndex, plate := gamesystem.NewPlate([]int{1}, [][]int{r.respuinScroll()})
+	gameresult := r.respinResult(plate)
+
+	if len(gameresult) > 0 {
+		islink = true
+		totalScores = normalScore * int64(gameresult[0][1])
 	}
 
-	var result = make([][]int, len(plateSymbol))
+	result := gamesystem.ResultMap(ScrollIndex, plate, totalScores, islink)
+	return result, totalScores
+}
 
-	for cIndex, colSymols := range plateSymbol {
-		result[cIndex] = foundation.CopyArray(colSymols)
-		for j, jmax := 0, len(randomWildPoint[cIndex]); j < jmax; j++ {
-			result[cIndex][randomWildPoint[cIndex][j]] = r.Wild1()
+// winresultArray ...
+func (r *Rule) winresultArray(plate []int) [][]int {
+	var result [][]int
+	var dynamicresult []int
+
+	for _, ItemResult := range r.ItemResults {
+		if r.isWin(plate, ItemResult) {
+
+			if r.isDynamicResult(ItemResult) {
+				dynamicresult = r.dynamicScore(plate, ItemResult)
+				result = append(result, dynamicresult)
+				break
+			} else {
+				result = append(result, ItemResult)
+				break
+			}
 		}
 	}
+
 	return result
 }
 
-// plateToLinePlate ...
-func (r *Rule) plateToLinePlate(plate [][]int, lineMap [][]int) [][]int {
-	var plateLineMap [][]int
-	var plateline []int
+// RespinResult result 0: icon index, 1: win rate
+func (r *Rule) respinResult(plate []int) [][]int {
+	var result [][]int
 
-	for _, linePoint := range lineMap {
-		plateline = []int{}
-		for lineIndex, point := range linePoint {
-			plateline = append(plateline, plate[lineIndex][point])
-		}
-		plateLineMap = append(plateLineMap, plateline)
+	switch plate[0] {
+	case 2:
+		result = append(result, []int{2, 5})
+	case 3:
+		result = append(result, []int{3, 7})
+	case 4:
+		result = append(result, []int{4, 10})
 	}
 
-	return plateLineMap
+	return result
 }
 
-// CutSymbolLink get line link array
-func (r *Rule) cutSymbolLink(symbolLine []int, option gameplate.PlateOption) []int {
-	var newSymbolLine []int
-	mainSymbol := symbolLine[0]
-
-	for _, symbol := range symbolLine {
-		if isWild, _ := option.IsWild(symbol); isWild {
-
-		} else if isWild, _ := option.IsWild(mainSymbol); isWild {
-			mainSymbol = symbol
-		} else if symbol != mainSymbol {
-			break
-		}
-
-		newSymbolLine = append(newSymbolLine, symbol)
+// IsFreeGameCount ...
+func (r *Rule) isFreeGameCount(plate []int) bool {
+	if plate[1] == 1 {
+		return true
 	}
+	return false
 
-	return newSymbolLine
 }
 
-// isWin symbol line compar parline is win
-func (r *Rule) isWin(lineSymbol []int, payLineSymbol []int, option gameplate.PlateOption) bool {
-	targetSymbol := 0
-	isWin := true
-	EmptyNum := option.EmptyNum()
-	mainSymbol := EmptyNum
-
-	for lineIndex, max := 0, len(payLineSymbol)-1; lineIndex < max; lineIndex++ {
-		targetSymbol = lineSymbol[lineIndex]
-
-		if isWild, _ := option.IsWild(targetSymbol); isWild {
-			if mainSymbol == EmptyNum {
-				mainSymbol = targetSymbol
-			}
-			continue
-		}
-
-		switch payLineSymbol[lineIndex] {
-		case targetSymbol:
-			mainSymbol = targetSymbol
-		default:
-			isWin = false
-			return isWin
-		}
+// IsRespin ...
+func (r *Rule) isRespin(plate []int) bool {
+	if plate[0] != 10 && plate[1] == 1 && plate[2] == 0 {
+		return true
 	}
+	return false
 
-	if mainSymbol != payLineSymbol[0] {
+}
+
+func (r *Rule) isWin(plates []int, result []int) bool {
+	IsWin := false
+
+	if r.isBounsGame(result) {
+		if r.isRespin(plates) {
+			return true
+		}
+
 		return false
 	}
 
-	return isWin
+	for i, plate := range plates {
+		IsWin = false
+
+		if plate == r.Space {
+			return false
+		}
+
+		if plate == r.wild1() || plate == r.wild2() {
+			IsWin = true
+		} else {
+
+			switch result[i] {
+			case plate:
+				IsWin = true
+			case -1000:
+				IsWin = true
+			case -1001: // any 7
+				if foundation.IsInclude(plate, []int{5, 6}) {
+					IsWin = true
+				}
+			case -1002: // any bar
+				if foundation.IsInclude(plate, []int{6, 7, 8, 9}) {
+					IsWin = true
+				}
+			}
+		}
+		if !IsWin {
+			return IsWin
+		}
+	}
+
+	return IsWin
 }
 
-func (r *Rule) lockWild(plater [][]int, lockWild [][]int, option gameplate.PlateOption) [][]int {
+// isBounsGame bouns game reul: itemresult score < 0
+func (r *Rule) isBounsGame(plates []int) bool {
+	if plates[len(plates)-1] < 0 {
+		return true
+	}
+	return false
+}
 
-	for colIndex, colarray := range plater {
-		for rowIndex, row := range colarray {
-			if isWild, _ := option.IsWild(row); isWild && !foundation.IsInclude(rowIndex, lockWild[colIndex]) {
-				lockWild[colIndex] = append(lockWild[colIndex], rowIndex)
+func (r *Rule) dynamicScore(plant, currendResult []int) []int {
+	dynamicresult := make([]int, len(currendResult))
+	copy(dynamicresult, currendResult)
+
+	switch currendResult[3] {
+	case -100:
+		for _, result := range r.ItemResults {
+			if result[0] == plant[0] {
+				dynamicresult[3] = result[3]
+				break
 			}
 		}
 	}
 
-	return lockWild
+	return dynamicresult
+}
+
+func (r *Rule) isDynamicResult(result []int) bool {
+	if result[3] < 0 {
+		return true
+	}
+	return false
 }

@@ -5,8 +5,8 @@ import (
 	"log"
 
 	"github.com/joho/godotenv"
-	"gitlab.fbk168.com/gamedevjp/cyberpunk/server/env"
-	"gitlab.fbk168.com/gamedevjp/cyberpunk/server/game"
+	"gitlab.fbk168.com/gamedevjp/cat/server/env"
+	"gitlab.fbk168.com/gamedevjp/cat/server/game"
 )
 
 type ENV struct {
@@ -18,10 +18,6 @@ type ENV struct {
 	ServerIP         string `json:"IP"`
 	ServerHTTPPort   string `json:"PORT"`
 	ServerSocketPort string `json:"SocketPORT"`
-
-	HTTPS bool   `json:"Https"`
-	Cert  string `json:"Cert"`
-	Key   string `json:"Key"`
 
 	DBIP       string `json:"DBIP"`
 	DBPort     string `json:"DBPORT"`
@@ -51,10 +47,6 @@ func main() {
 		ServerIP:         env.GetEnvAsString("SERVER_IP"),
 		ServerHTTPPort:   env.GetEnvAsString("SERVER_HTTP_PORT"),
 		ServerSocketPort: env.GetEnvAsString("SERVER_SOCKET_PORT"),
-
-		HTTPS: env.GetEnvAsBool("SERVER_HTTPS"),
-		Cert:  env.GetEnvAsString("SERVER_CERT"),
-		Key:   env.GetEnvAsString("SERVER_KEY"),
 
 		DBIP:       env.GetEnvAsString("DB_IP"),
 		DBPort:     env.GetEnvAsString("DB_PORT"),

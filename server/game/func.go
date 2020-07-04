@@ -8,7 +8,8 @@ import (
 	"github.com/YWJSonic/ServerUtility/iserver"
 	"github.com/YWJSonic/ServerUtility/restfult"
 	"github.com/YWJSonic/ServerUtility/socket"
-	"gitlab.fbk168.com/gamedevjp/cyberpunk/server/game/gamerule"
+	"gitlab.fbk168.com/gamedevjp/cat/server/game/cache"
+	"gitlab.fbk168.com/gamedevjp/cat/server/game/gamerule"
 )
 
 // NewGameServer ...
@@ -26,10 +27,15 @@ func NewGameServer(jsStr string) {
 		panic(err)
 	}
 
+	cacheRedis := cache.Setting{
+		URL: baseSetting.RedisURL,
+	}
+
 	var gameserver = iserver.NewService()
 	var game = &Game{
 		IGameRule: gameRule,
 		Server:    gameserver,
+		Cache:     cache.NewCache(cacheRedis),
 	}
 	gameserver.Restfult = restfult.NewRestfultService()
 	gameserver.Socket = socket.NewSocket()
@@ -44,17 +50,7 @@ func NewGameServer(jsStr string) {
 	gameserver.LaunchDB("logdb", setting)
 
 	// start restful service
-
-	if config["Https"].(bool) {
-		cert := config["Cert"].(string)
-		key := config["Key"].(string)
-
-		go gameserver.LaunchHTTPS(game.RESTfulURLs(), cert, key)
-
-	} else {
-		go gameserver.LaunchRestfult(game.RESTfulURLs())
-	}
-
+	go gameserver.LaunchRestfult(game.RESTfulURLs())
 	// go gameserver.LaunchSocket(game.SocketURLs())
 
 	<-gameserver.ShotDown
