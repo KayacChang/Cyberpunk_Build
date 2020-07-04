@@ -10,29 +10,65 @@ import (
 	"github.com/YWJSonic/ServerUtility/messagehandle"
 )
 
-// GetAttachKind get db attach kind
-func GetAttachKind(db *sql.DB, playeridstr string, kind int64) ([]map[string]interface{}, messagehandle.ErrorMsg) {
-	// result, err := dbservice.CallReadOutMap(db, "AttachKindGet_Read", playerid, kind)
-	result, err := dbservice.QueryOutMap(db, "select * from attach where PlayerIDStr = ? AND Kind = ?;", playeridstr, kind)
+// GetSetting get db setting
+func GetSetting(db *sql.DB) ([]map[string]interface{}, messagehandle.ErrorMsg) {
+	result, err := dbservice.CallReadOutMap(db, "SettingGet_Read")
+	return result, err
+}
+
+// GetSettingKey get db setting
+func GetSettingKey(db *sql.DB, key string) ([]map[string]interface{}, messagehandle.ErrorMsg) {
+	result, err := dbservice.CallReadOutMap(db, "SettingKeyGet_Read", key)
+	return result, err
+}
+
+// NewSetting ...
+func NewSetting(db *sql.DB, args ...interface{}) {
+	dbservice.CallWrite(
+		db,
+		dbservice.MakeProcedureQueryStr("SettingNew_Write", len(args)),
+		args...,
+	)
+}
+
+// UpdateSetting ...
+func UpdateSetting(db *sql.DB, args ...interface{}) messagehandle.ErrorMsg {
+	_, err := dbservice.CallWrite(db, dbservice.MakeProcedureQueryStr("SettingSet_Update", len(args)), args...)
+	return err
+}
+
+// ReflushSetting ...
+func ReflushSetting(db *sql.DB, args ...interface{}) messagehandle.ErrorMsg {
+	args = append(args, foundation.ServerNowTime())
+	_, err := dbservice.CallWrite(db, dbservice.MakeProcedureQueryStr("SettingSet_Update_v2", len(args)), args...)
+	return err
+}
+
+// GetAttachTypeRange ...
+func GetAttachTypeRange(db *sql.DB, playerid, kind, miniAttType, maxAttType int64) ([]map[string]interface{}, messagehandle.ErrorMsg) {
+	result, err := dbservice.CallReadOutMap(db, "AttachTypeRangeGet_Read", playerid, kind, miniAttType, maxAttType)
 	return result, err
 }
 
 // GetAttachType ...
-func GetAttachType(db *sql.DB, playeridstr string, kind int64, attType int64) ([]map[string]interface{}, messagehandle.ErrorMsg) {
-	// result, err := dbservice.CallReadOutMap(db, "AttachTypeGet_Read", playerid, kind, attType)
-	result, err := dbservice.QueryOutMap(db, "seletct * form attach where PlayerIDStr = ? AND Kind = ? AND Type = ?;", playeridstr, kind, attType)
+func GetAttachType(db *sql.DB, playerid int64, kind int64, attType int64) ([]map[string]interface{}, messagehandle.ErrorMsg) {
+	result, err := dbservice.CallReadOutMap(db, "AttachTypeGet_Read", playerid, kind, attType)
+	return result, err
+}
 
+// GetAttachKind get db attach kind
+func GetAttachKind(db *sql.DB, playerid int64, kind int64) ([]map[string]interface{}, messagehandle.ErrorMsg) {
+	result, err := dbservice.CallReadOutMap(db, "AttachKindGet_Read", playerid, kind)
 	return result, err
 }
 
 // NewAttach ...
-func NewAttach(db *sql.DB, args ...interface{}) (sql.Result, messagehandle.ErrorMsg) {
-	result, err := dbservice.CallWrite(
+func NewAttach(db *sql.DB, args ...interface{}) {
+	dbservice.CallWrite(
 		db,
 		dbservice.MakeProcedureQueryStr("AttachNew_Write", len(args)),
 		args...,
 	)
-	return result, err
 }
 
 // UpdateAttach ...
