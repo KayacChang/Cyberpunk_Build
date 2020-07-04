@@ -14,9 +14,8 @@ import (
 	"github.com/YWJSonic/ServerUtility/user"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
-	"gitlab.fbk168.com/gamedevjp/cat/server/game/cache"
-	"gitlab.fbk168.com/gamedevjp/cat/server/game/catattach"
-	"gitlab.fbk168.com/gamedevjp/cat/server/game/protoc"
+	"gitlab.fbk168.com/gamedevjp/cyberpunk/server/game/cache"
+	"gitlab.fbk168.com/gamedevjp/cyberpunk/server/game/protoc"
 )
 
 var version string = "v1"
@@ -67,6 +66,11 @@ func (g *Game) SocketURLs() []socket.Setting {
 	}
 }
 
+// NewUser *Not Use
+func (g *Game) NewUser(token, gameAccount string) *user.Info {
+	return &user.Info{}
+}
+
 // GetUser ...
 func (g *Game) GetUser(userToken string) (*user.Info, *protoc.Error, error) {
 	if g.Server.Setting.ServerMod == "dev" {
@@ -76,12 +80,6 @@ func (g *Game) GetUser(userToken string) (*user.Info, *protoc.Error, error) {
 				IDStr:  "devtest",
 				MoneyU: 10000000,
 			},
-			IAttach: catattach.NewAttach(catattach.Setting{
-				UserIDStr: "devtest",
-				Kind:      g.IGameRule.GetGameIndex(),
-				DB:        g.Server.DBConn("gamedb"),
-				Redis:     g.Cache,
-			}),
 		}, nil, nil
 	}
 
@@ -113,12 +111,6 @@ func (g *Game) GetUser(userToken string) (*user.Info, *protoc.Error, error) {
 			IDStr:  userProto.GetUserId(),
 			MoneyU: userProto.GetBalance(),
 		},
-		IAttach: catattach.NewAttach(catattach.Setting{
-			UserIDStr: userProto.GetUserId(),
-			Kind:      g.IGameRule.GetGameIndex(),
-			DB:        g.Server.DBConn("gamedb"),
-			Redis:     g.Cache,
-		}),
 	}, nil, nil
 }
 
@@ -138,6 +130,7 @@ func (g *Game) NewOrder(token, userIDStr string, betMoney int64) (*protoc.Order,
 		GameId: g.IGameRule.GetGameTypeID(),
 		Bet:    uint64(betMoney),
 	}
+	fmt.Println(orderProto)
 	payload, err := proto.Marshal(orderProto)
 	if err != nil {
 		return nil, nil, err
@@ -165,7 +158,6 @@ func (g *Game) NewOrder(token, userIDStr string, betMoney int64) (*protoc.Order,
 // EndOrder ...
 func (g *Game) EndOrder(token string, orderProto *protoc.Order) (*protoc.Order, *protoc.Error, error) {
 	orderProto.CompletedAt = ptypes.TimestampNow()
-	orderProto.State = protoc.Order_Completed
 	if g.Server.Setting.ServerMod == "dev" {
 		return orderProto, nil, nil
 	}

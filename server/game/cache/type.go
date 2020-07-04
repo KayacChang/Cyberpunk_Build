@@ -12,9 +12,8 @@ import (
 
 // Setting ...
 type Setting struct {
-	// ConnectTimeout, ReadTimeout, WriteTimeout time.Duration
-	CacheDeleteTime time.Duration
-	URL             string
+	ConnectTimeout, ReadTimeout, WriteTimeout, CacheDeleteTime time.Duration
+	URL                                                        string
 }
 
 // GameCache ICache
@@ -32,10 +31,10 @@ func (c *GameCache) GetCachePool() *redis.Pool {
 			MaxActive:   50,
 			Wait:        true,
 			Dial: func() (redis.Conn, error) {
-				c, err := redis.Dial("tcp", c.Setting.URL)
-				// redis.DialConnectTimeout(c.Setting.ConnectTimeout),
-				// redis.DialReadTimeout(c.Setting.ReadTimeout),
-				// redis.DialWriteTimeout(c.Setting.WriteTimeout))
+				c, err := redis.Dial("tcp", c.Setting.URL,
+					redis.DialConnectTimeout(c.Setting.ConnectTimeout),
+					redis.DialReadTimeout(c.Setting.ReadTimeout),
+					redis.DialWriteTimeout(c.Setting.WriteTimeout))
 				if err != nil {
 					messagehandle.ErrorLogPrintln("newCachePool-1", c, err)
 					return nil, fmt.Errorf("redis connection error: %s", err)
@@ -58,18 +57,114 @@ func (c *GameCache) GetCachePool() *redis.Pool {
 	return c.cachePool
 }
 
-// SetAttach ...
-func (c *GameCache) SetAttach(playerid string, gameIndex int64, value interface{}) {
-	key := fmt.Sprintf("attach/%s/%d", playerid, gameIndex)
-	if err := cacheinfo.RunSet(c.GetCachePool(), key, value, c.Setting.CacheDeleteTime); err != nil {
-		fmt.Printf("SetAttach: err %s: playerid %s: gameindex %d: value %v", err, playerid, gameIndex, value)
+// GetToken ...
+func (c *GameCache) GetToken(gameAccount string) string {
+	value, err := cacheinfo.GetString(c.GetCachePool(), fmt.Sprintf("TOK%s", gameAccount))
+
+	if err != nil {
+		return ""
 	}
+	return value
+}
+
+// SetToken ...
+func (c *GameCache) SetToken(gameAccount, Token string) {
+	now := time.Now()
+	lastHour := 23 - now.Hour()
+	lastMinute := 59 - now.Minute()
+	lastsecod := 60 - now.Second()
+	lasttime := time.Duration(lastHour*60*60+lastMinute*60+lastsecod) * time.Second
+	cacheinfo.RunSet(c.GetCachePool(), fmt.Sprintf("TOK%s", gameAccount), Token, lasttime)
+}
+
+// GetAccountInfo Get Account Struct
+func (c *GameCache) GetAccountInfo(gameAccount string) (interface{}, messagehandle.ErrorMsg) {
+	err := messagehandle.New()
+	info, errMsg := cacheinfo.Get(c.GetCachePool(), fmt.Sprintf("ACC%s", gameAccount))
+
+	if errMsg != nil {
+		err.ErrorCode = code.FailedPrecondition
+		err.Msg = fmt.Sprintln(errMsg)
+		messagehandle.ErrorLogPrintln("GetAccountInfo-1", errMsg, gameAccount)
+		return nil, err
+	}
+
+	return info, err
+}
+
+// SetAccountInfo Set Account Struct
+func (c *GameCache) SetAccountInfo(gameAccount string, Value interface{}) {
+	cacheinfo.RunSet(c.GetCachePool(), fmt.Sprintf("ACC%s", gameAccount), Value, c.Setting.CacheDeleteTime)
+}
+
+// GetPlayerInfo Get PlayerInfo Struct
+func (c *GameCache) GetPlayerInfo(playerid int64) (interface{}, messagehandle.ErrorMsg) {
+	err := messagehandle.New()
+	info, errMsg := cacheinfo.Get(c.GetCachePool(), fmt.Sprintf("ID%dJS", playerid))
+
+	if errMsg != nil {
+		err.ErrorCode = code.FailedPrecondition
+		err.Msg = fmt.Sprintln(errMsg)
+		messagehandle.ErrorLogPrintln("GetPlayerInfo-1", errMsg, playerid)
+		return nil, err
+	}
+
+	return info, err
+}
+
+// SetPlayerInfo Set PlayerInfo Struct
+func (c *GameCache) SetPlayerInfo(playerid int64, Value interface{}) {
+	cacheinfo.RunSet(c.GetCachePool(), fmt.Sprintf("ID%dJS", playerid), Value, c.Setting.CacheDeleteTime)
+}
+
+// ClearPlayerCache ...
+func (c *GameCache) ClearPlayerCache(playerid int64, gameAccount string) {
+	cacheinfo.Del(c.GetCachePool(), fmt.Sprintf("ID%dJS", playerid))
+	cacheinfo.Del(c.GetCachePool(), fmt.Sprintf("ACC%s", gameAccount))
+	cacheinfo.Del(c.GetCachePool(), fmt.Sprintf("TOK%s", gameAccount))
+}
+
+// ClearAllCache ...
+func (c *GameCache) ClearAllCache() {
+	cacheinfo.RunFlush(c.GetCachePool())
+}
+
+//------ third party request -------
+
+// SetULGInfo Set ULG info
+func (c *GameCache) SetULGInfo(playerid int64, value interface{}) {
+	key := fmt.Sprintf("ULG%d", playerid)
+	cacheinfo.RunSet(c.GetCachePool(), key, value, c.Setting.CacheDeleteTime)
+}
+
+// GetULGInfoCache Get ULG info
+func (c *GameCache) GetULGInfoCache(playerid int64) interface{} {
+	err := messagehandle.New()
+	key := fmt.Sprintf("ULG%d", playerid)
+	info, errMsg := cacheinfo.Get(c.GetCachePool(), key)
+
+	if errMsg != nil {
+		err.ErrorCode = code.FailedPrecondition
+		err.Msg = fmt.Sprintln(errMsg)
+		messagehandle.ErrorLogPrintln("GetULGInfoCache-1", errMsg, playerid)
+		return nil
+	}
+
+	return info
+}
+
+//------ game info per each player -----
+
+// SetAttach ...
+func (c *GameCache) SetAttach(playerid int64, value interface{}) {
+	key := fmt.Sprintf("attach%d", playerid)
+	cacheinfo.RunSet(c.GetCachePool(), key, value, c.Setting.CacheDeleteTime)
 }
 
 // GetAttach game data request
-func (c *GameCache) GetAttach(playerid string, gameIndex int64) interface{} {
+func (c *GameCache) GetAttach(playerid int64) interface{} {
 	err := messagehandle.New()
-	key := fmt.Sprintf("attach/%s/%d", playerid, gameIndex)
+	key := fmt.Sprintf("attach%d", playerid)
 	info, errMsg := cacheinfo.Get(c.GetCachePool(), key)
 
 	if errMsg != nil {
