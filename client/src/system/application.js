@@ -4,15 +4,38 @@ import {Application} from 'pixi.js';
 import EventEmitter from 'eventemitter3';
 import {Sound} from './modules/sound';
 import {Resource} from './modules/resource';
-import {resize} from './modules/screen';
 import {User} from './user';
+import {isMobile} from './modules/device';
 
 const {defineProperties, assign, freeze} = Object;
 
-export default (function() {
+function getQuality() {
+    return new URL(location).searchParams.get('quality');
+}
+
+function getScale(quality = 'high') {
+    if (quality === 'high') {
+        return 1;
+    }
+    if (quality === 'low') {
+        return 0.5;
+    }
+
+    return isMobile() ? 0.5 : 1;
+}
+
+function getSize(quality = 'high') {
+    return {
+        width: 1920 * getScale(quality),
+        height: 1080 * getScale(quality),
+    };
+}
+
+export default (function () {
+    const quality = getQuality();
+
     const app = new Application({
-        resolution: devicePixelRatio || 1,
-        antialias: true,
+        ...getSize(quality),
     });
 
     //  Resource
@@ -75,14 +98,11 @@ export default (function() {
         },
         //  Screen Management ==================
         resize() {
-            resize(app);
-            app.emit('resize');
+            app.stage.children.forEach((scene) => {
+                scene.scale.set(getScale(quality));
+            });
         },
     });
-
-    //  Event Binding
-    global.addEventListener('resize', app.resize);
-    global.addEventListener('orientationchange', app.resize);
 
     return freeze(app);
 })();
